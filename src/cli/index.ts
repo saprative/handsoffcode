@@ -53,9 +53,9 @@ export function setupCLI() {
 
   program.command('init')
     .description('Initialize configuration in the current directory')
-    .action(() => {
+    .action(async () => {
       try {
-        initConfig();
+        await initConfig();
       } catch (err: any) {
         console.error(`Error: ${err.message}`);
         process.exit(1);
