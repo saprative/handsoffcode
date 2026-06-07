@@ -3,18 +3,13 @@ import { EventEmitter } from 'events';
 import path from 'path';
 import { AgentAdapter } from './base';
 
-export class AntigravityAdapter implements AgentAdapter {
+export class CliAgentAdapter implements AgentAdapter {
   private processes: Map<string, ChildProcess> = new Map();
 
-  constructor(private bus: EventEmitter) {}
+  constructor(private agentCommand: string, private bus: EventEmitter) {}
 
   async startTask(taskId: string, input: string): Promise<void> {
-    // Launch the mock agent
-    const mockAgentPath = path.join(__dirname, '..', 'mock', 'antigravity-agent.ts');
-    
-    // We use tsx or ts-node to run the typescript mock agent directly
-    // In production, this would call the actual 'antigravity' binary.
-    const child = spawn('npx', ['tsx', mockAgentPath, input], {
+    const child = spawn(this.agentCommand, [input], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
