@@ -15,36 +15,46 @@ export class CliAgentAdapter implements AgentAdapter {
 
     this.processes.set(taskId, child);
 
+    const promptRegex = /(\[y\/n\]|\(y\/n\)|\[yes\/no\]|\(yes\/no\))/i;
+    let buffer = '';
+
     if (child.stdout) {
       child.stdout.on('data', (data) => {
-        const lines = data.toString().split('\n');
+        const text = data.toString();
+        buffer += text;
+        
+        // Emit raw log chunk
+        this.bus.emit('task:log', { taskId, log: text });
+
+        // Check for JSON protocol line-by-line
+        const lines = text.split('\n');
         for (const line of lines) {
           if (!line.trim()) continue;
-
           try {
             const parsed = JSON.parse(line);
             if (parsed.event === 'approval_required') {
-              this.bus.emit('task:approval_required', {
-                taskId,
-                message: parsed.message
-              });
-              continue;
+              this.bus.emit('task:approval_required', { taskId, message: parsed.message });
+              buffer = '';
+              return;
             }
           } catch (e) {
-            // Not JSON, just a regular log
+            // Not JSON
           }
+        }
 
-          this.bus.emit('task:log', { taskId, log: line });
+        // Check for standard CLI text prompts
+        if (promptRegex.test(buffer)) {
+          const linesBuf = buffer.trim().split('\n');
+          const lastLine = linesBuf[linesBuf.length - 1];
+          this.bus.emit('task:approval_required', { taskId, message: lastLine });
+          buffer = '';
         }
       });
     }
 
     if (child.stderr) {
       child.stderr.on('data', (data) => {
-        const lines = data.toString().split('\n').filter((l: string) => l.trim() !== '');
-        for (const line of lines) {
-          this.bus.emit('task:log', { taskId, log: `[ERROR] ${line}` });
-        }
+        this.bus.emit('task:log', { taskId, log: `[ERROR] ${data.toString()}` });
       });
     }
 
@@ -67,7 +77,7 @@ export class CliAgentAdapter implements AgentAdapter {
     const child = this.processes.get(taskId);
     if (!child) throw new Error(`Task ${taskId} not found or not running`);
     if (child.stdin) {
-      child.stdin.write('approve\n');
+      child.stdin.write('y\n');
     }
   }
 
@@ -75,7 +85,7 @@ export class CliAgentAdapter implements AgentAdapter {
     const child = this.processes.get(taskId);
     if (!child) throw new Error(`Task ${taskId} not found or not running`);
     if (child.stdin) {
-      child.stdin.write('reject\n');
+      child.stdin.write('n\n');
     }
   }
 
