@@ -3,3 +3,4 @@ dist/
 *.yaml
 .env
 daemon.log
+.DS_Store
